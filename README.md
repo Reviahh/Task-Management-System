@@ -15,6 +15,7 @@
 
 ## Documentation
 - **DeepWiki 文档**: [Development Guide](https://deepwiki.com/Reviahh/Task-Management-System/6-development-guide) - 完整的开发指南，包含环境配置、测试流程和 API 参考
+- **测试覆盖率报告**: [Test Coverage Report](docs/TEST_COVERAGE_REPORT.md) - 详细的测试覆盖率分析和测试结果
 
 ## Features Implemented
 
