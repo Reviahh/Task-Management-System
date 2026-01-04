@@ -1,4 +1,4 @@
-"""Application configuration settings."""
+"""Application configuration settings for Intelligent Task Management System."""
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
@@ -19,9 +19,11 @@ class Settings(BaseSettings):
     debug: bool = True
     app_name: str = "Intelligent Task Management System"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "ignore"
+    }
 
 
 @lru_cache()
