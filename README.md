@@ -429,10 +429,9 @@ pytest --cov=app --cov-report=html:reports/coverage
 | 指标 | 数值 |
 |------|------|
 | 总测试用例数 | **32** |
-| Unit Tests (单元测试) | 20 |
-| Integration Tests (集成测试) | 12 |
+| 代码覆盖率 | **74%** |
 | 测试文件数 | 2 |
-| 测试类数 | 14 |
+| 测试通过率 | 100% |
 
 ### Logging (日志)
 - [x] **结构化日志**: JSON 格式日志输出

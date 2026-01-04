@@ -6,6 +6,16 @@
 
 ---
 
+## Application Preview
+
+### 主界面
+![Dashboard](screenshots/dashboard.png)
+
+### AI 功能
+![AI Features](screenshots/ai-features.png)
+
+---
+
 ## Summary
 
 | Metric | Value |
