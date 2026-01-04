@@ -30,7 +30,10 @@
 - [x] **优先级推荐**: 分析任务内容智能推荐优先级
 - [x] **任务分解**: 将复杂任务拆分为可执行的子任务
 - [x] **语义搜索**: 基于语义相似度搜索任务，而非仅关键词匹配
-- [x] **任务摘要**: AI 生成任务统计和洞察摘要
+- [x] **任务摘要**: AI 生成任务统计和洞察摘要 (支持每日/每周)
+- [x] **智能任务分类**: 自动分析任务内容并归类到预设类别
+- [x] **相似任务检测**: 查找相似的任务，避免重复
+- [x] **任务洞察**: AI 分析任务数据，提供完成率、状态分布和优化建议
 
 ### Frontend Features (前端功能)
 - [x] 现代化响应式 UI 设计
@@ -176,7 +179,10 @@ npm run dev
 | POST | `/api/tasks/{id}/ai/suggest-priority` | 获取优先级建议 |
 | POST | `/api/tasks/{id}/ai/breakdown` | 任务分解 |
 | POST | `/api/tasks/ai/semantic-search` | 语义搜索 |
-| POST | `/api/tasks/ai/summary` | 获取任务摘要 |
+| POST | `/api/tasks/ai/summary` | 获取任务摘要 (支持 daily/weekly 时间范围) |
+| POST | `/api/tasks/ai/similar` | 查找相似任务 |
+| POST | `/api/tasks/ai/categorize` | 智能任务分类 |
+| GET | `/api/tasks/ai/insights` | 获取任务洞察和分析 |
 
 ### Request/Response Examples
 
