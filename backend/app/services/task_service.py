@@ -174,14 +174,26 @@ class TaskService:
     async def get_task_summary(
         self,
         db: AsyncSession,
-        task_ids: Optional[List[int]] = None
+        task_ids: Optional[List[int]] = None,
+        period: Optional[str] = None
     ) -> dict:
         """Get summary statistics and AI-generated summary for tasks."""
-        if task_ids:
-            result = await db.execute(select(Task).where(Task.id.in_(task_ids)))
-        else:
-            result = await db.execute(select(Task))
+        from datetime import datetime, timedelta
         
+        query = select(Task)
+        
+        if task_ids:
+            query = query.where(Task.id.in_(task_ids))
+        
+        # Filter by time period
+        if period == "daily":
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            query = query.where(Task.created_at >= today)
+        elif period == "weekly":
+            week_ago = datetime.now() - timedelta(days=7)
+            query = query.where(Task.created_at >= week_ago)
+        
+        result = await db.execute(query)
         tasks = result.scalars().all()
         
         # Calculate statistics
@@ -196,7 +208,7 @@ class TaskService:
             {"title": t.title, "status": t.status.value, "priority": t.priority.value}
             for t in tasks
         ]
-        summary = await ai_service.summarize_tasks(task_dicts)
+        summary = await ai_service.summarize_tasks(task_dicts, period)
         
         return {
             "summary": summary,
@@ -206,6 +218,77 @@ class TaskService:
             "in_progress_tasks": in_progress,
             "high_priority_count": high_priority
         }
+    
+    async def find_similar_tasks(
+        self,
+        db: AsyncSession,
+        task_id: int,
+        limit: int = 5
+    ) -> List[Tuple[Task, float]]:
+        """Find similar tasks based on semantic similarity."""
+        # Get the source task
+        source_task = await self.get_task(db, task_id)
+        if not source_task:
+            return []
+        
+        # Get all other tasks with embeddings
+        result = await db.execute(
+            select(Task).where(
+                Task.embedding.isnot(None),
+                Task.id != task_id
+            )
+        )
+        all_tasks = result.scalars().all()
+        
+        # Convert to dict for AI service
+        task_dicts = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "description": t.description,
+                "status": t.status.value,
+                "priority": t.priority.value,
+                "tags": t.tags,
+                "embedding": t.embedding
+            }
+            for t in all_tasks
+        ]
+        
+        # Find similar tasks
+        similar = await ai_service.find_similar_tasks(
+            source_task.title,
+            source_task.description,
+            task_dicts,
+            limit
+        )
+        
+        # Map back to Task objects
+        results = []
+        for task_dict, score in similar:
+            for task in all_tasks:
+                if task.id == task_dict["id"]:
+                    results.append((task, score))
+                    break
+        
+        return results
+    
+    async def get_task_insights(self, db: AsyncSession) -> dict:
+        """Get AI-generated insights about all tasks."""
+        result = await db.execute(select(Task))
+        tasks = result.scalars().all()
+        
+        task_dicts = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "status": t.status.value,
+                "priority": t.priority.value,
+                "tags": t.tags or []
+            }
+            for t in tasks
+        ]
+        
+        return await ai_service.generate_task_insights(task_dicts)
 
 
 # Singleton instance

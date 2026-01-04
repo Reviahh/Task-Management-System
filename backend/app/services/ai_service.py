@@ -323,23 +323,29 @@ Respond ONLY with valid JSON:
         
         return float(dot_product / (norm1 * norm2))
     
-    async def summarize_tasks(self, tasks: List[dict]) -> str:
+    async def summarize_tasks(self, tasks: List[dict], period: Optional[str] = None) -> str:
         """Generate a summary of tasks."""
         if not self._is_available() or not tasks:
             return self._fallback_summarize(tasks)
         
         task_list = "\n".join([
-            f"- [{t['status']}] {t['title']} (Priority: {t['priority']})"
+            f"- [{t['status']}] {t['title']} (优先级: {t['priority']})"
             for t in tasks[:20]  # Limit to 20 tasks
         ])
         
-        prompt = f"""Summarize these tasks in a brief, actionable summary.
-Include: overall status, priorities, and recommendations.
+        period_text = ""
+        if period == "daily":
+            period_text = "今天的"
+        elif period == "weekly":
+            period_text = "本周的"
+        
+        prompt = f"""请用中文总结{period_text}这些任务，提供简洁的、可操作的摘要。
+包括：整体状态、优先事项、以及建议。
 
-Tasks:
+任务列表：
 {task_list}
 
-Provide a concise summary in 2-3 sentences."""
+请用2-3句话提供摘要，使用中文回复。"""
         
         try:
             response = await self.client.chat.completions.create(
@@ -357,13 +363,166 @@ Provide a concise summary in 2-3 sentences."""
     def _fallback_summarize(self, tasks: List[dict]) -> str:
         """Fallback task summary."""
         if not tasks:
-            return "No tasks to summarize."
+            return "暂无任务需要总结。"
         
         total = len(tasks)
         completed = sum(1 for t in tasks if t.get("status") == "completed")
+        in_progress = sum(1 for t in tasks if t.get("status") == "in_progress")
+        pending = sum(1 for t in tasks if t.get("status") == "pending")
         high_priority = sum(1 for t in tasks if t.get("priority") == "high")
         
-        return f"You have {total} tasks: {completed} completed, {total - completed} remaining. {high_priority} tasks are high priority."
+        return f"您共有 {total} 个任务：{completed} 个已完成，{in_progress} 个进行中，{pending} 个待处理。其中 {high_priority} 个是高优先级任务。"
+
+    async def find_similar_tasks(self, task_title: str, task_description: Optional[str], 
+                                  all_tasks: List[dict], limit: int = 5) -> List[Tuple[dict, float]]:
+        """Find similar tasks based on content similarity."""
+        query_text = f"{task_title} {task_description or ''}"
+        query_embedding = await self.get_embedding(query_text)
+        
+        if not query_embedding:
+            return []
+        
+        similarities = []
+        for task in all_tasks:
+            if task.get("embedding"):
+                similarity = self.compute_similarity(query_embedding, task["embedding"])
+                similarities.append((task, similarity))
+        
+        # Sort by similarity descending
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        return similarities[:limit]
+
+    async def categorize_task(self, title: str, description: Optional[str] = None) -> Tuple[str, List[str], str]:
+        """Automatically categorize a task into predefined categories."""
+        if not self._is_available():
+            return self._fallback_categorize(title, description)
+        
+        content = f"Title: {title}"
+        if description:
+            content += f"\nDescription: {description}"
+        
+        prompt = f"""Analyze this task and categorize it.
+
+{content}
+
+Categories to choose from:
+- work: 工作相关任务
+- personal: 个人事务
+- health: 健康和运动
+- finance: 财务相关
+- learning: 学习和成长
+- social: 社交活动
+- home: 家庭事务
+- creative: 创意项目
+- urgent: 紧急事项
+- other: 其他
+
+Respond ONLY with valid JSON:
+{{"category": "work", "subcategories": ["meeting", "project"], "reasoning": "This task is about..."}}"""
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=200
+            )
+            
+            result = response.choices[0].message.content.strip()
+            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                return (
+                    data.get("category", "other"),
+                    data.get("subcategories", []),
+                    data.get("reasoning", "")
+                )
+        except Exception as e:
+            print(f"Categorization error: {e}")
+        
+        return self._fallback_categorize(title, description)
+    
+    def _fallback_categorize(self, title: str, description: Optional[str] = None) -> Tuple[str, List[str], str]:
+        """Fallback task categorization."""
+        text = (title + " " + (description or "")).lower()
+        
+        category_keywords = {
+            "work": ["work", "meeting", "project", "report", "client", "deadline", "工作", "会议", "项目", "报告", "客户", "截止", "办公", "汇报", "同事", "老板", "公司"],
+            "personal": ["personal", "self", "个人", "自己", "私人"],
+            "health": ["health", "gym", "exercise", "doctor", "hospital", "medicine", "健康", "运动", "医生", "锻炼", "医院", "检查", "体检", "药", "治疗", "看病", "身体"],
+            "finance": ["money", "pay", "bill", "budget", "invest", "bank", "钱", "支付", "账单", "投资", "银行", "财务", "工资", "转账", "理财"],
+            "learning": ["learn", "study", "course", "book", "read", "tutorial", "学习", "课程", "阅读", "教程", "培训", "知识", "技能"],
+            "social": ["friend", "party", "dinner", "meet", "朋友", "聚会", "约会", "聚餐", "社交", "见面"],
+            "home": ["home", "clean", "repair", "house", "家", "打扫", "修理", "整理", "家务", "房间", "装修"],
+            "creative": ["design", "create", "art", "write", "设计", "创作", "艺术", "写作", "画"],
+            "urgent": ["urgent", "asap", "emergency", "important", "critical", "紧急", "立即", "马上", "重要", "尽快"],
+            "shopping": ["buy", "shop", "purchase", "order", "购买", "购物", "买", "下单", "商城"],
+        }
+        
+        matched_categories = []
+        for category, keywords in category_keywords.items():
+            if any(kw in text for kw in keywords):
+                matched_categories.append(category)
+        
+        if matched_categories:
+            # Return first match as primary, rest as subcategories
+            return matched_categories[0], matched_categories[1:3], f"基于关键词匹配: {matched_categories[0]}"
+        
+        return "other", [], "未能匹配到具体分类"
+
+    async def generate_task_insights(self, tasks: List[dict]) -> dict:
+        """Generate insights and analytics about tasks."""
+        if not tasks:
+            return {
+                "total": 0,
+                "insights": [],
+                "recommendations": []
+            }
+        
+        # Basic statistics
+        total = len(tasks)
+        by_status = {}
+        by_priority = {}
+        by_tag = {}
+        
+        for task in tasks:
+            status = task.get("status", "pending")
+            priority = task.get("priority", "medium")
+            tags = task.get("tags", [])
+            
+            by_status[status] = by_status.get(status, 0) + 1
+            by_priority[priority] = by_priority.get(priority, 0) + 1
+            for tag in tags:
+                by_tag[tag] = by_tag.get(tag, 0) + 1
+        
+        insights = []
+        recommendations = []
+        
+        # Generate insights
+        if by_status.get("pending", 0) > total * 0.5:
+            insights.append("超过一半的任务仍在待处理状态")
+            recommendations.append("建议优先处理积压的任务")
+        
+        if by_priority.get("high", 0) > 3:
+            insights.append(f"您有 {by_priority.get('high', 0)} 个高优先级任务")
+            recommendations.append("考虑先完成高优先级任务")
+        
+        completion_rate = by_status.get("completed", 0) / total * 100 if total > 0 else 0
+        insights.append(f"任务完成率: {completion_rate:.1f}%")
+        
+        if by_tag:
+            top_tags = sorted(by_tag.items(), key=lambda x: x[1], reverse=True)[:3]
+            insights.append(f"最常用的标签: {', '.join([t[0] for t in top_tags])}")
+        
+        return {
+            "total": total,
+            "by_status": by_status,
+            "by_priority": by_priority,
+            "by_tag": by_tag,
+            "completion_rate": completion_rate,
+            "insights": insights,
+            "recommendations": recommendations
+        }
 
 
 # Singleton instance

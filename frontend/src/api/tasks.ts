@@ -81,8 +81,47 @@ export async function semanticSearch(query: string, limit: number = 10): Promise
   return data
 }
 
-export async function getTaskSummary(taskIds?: number[]): Promise<TaskSummary> {
-  const { data } = await api.post('/tasks/ai/summary', { task_ids: taskIds })
+export async function getTaskSummary(taskIds?: number[], period?: string): Promise<TaskSummary> {
+  const { data } = await api.post('/tasks/ai/summary', { task_ids: taskIds, period })
+  return data
+}
+
+// Find similar tasks
+export async function findSimilarTasks(taskId: number, limit: number = 5): Promise<{
+  source_task_id: number
+  similar_tasks: Array<{ task: Task; similarity_score: number }>
+}> {
+  const { data } = await api.post('/tasks/ai/similar', { task_id: taskId, limit })
+  return data
+}
+
+// Categorize task
+export async function categorizeTask(title: string, description?: string): Promise<{
+  category: string
+  subcategories: string[]
+  reasoning: string
+}> {
+  const { data } = await api.post('/tasks/ai/categorize', { title, description })
+  return data
+}
+
+// Get task insights
+export async function getTaskInsights(): Promise<{
+  total: number
+  by_status: Record<string, number>
+  by_priority: Record<string, number>
+  by_tag: Record<string, number>
+  completion_rate: number
+  insights: string[]
+  recommendations: string[]
+}> {
+  const { data } = await api.get('/tasks/ai/insights')
+  return data
+}
+
+// Health check
+export async function checkHealth(): Promise<{ status: string; ai_available: boolean }> {
+  const { data } = await api.get('/health')
   return data
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useTaskStore } from '../stores/tasks'
 import * as api from '../api/tasks'
 import type { ParsedTask, SemanticSearchResult } from '../types/task'
@@ -20,10 +20,46 @@ const searchQuery = ref('')
 const searchLoading = ref(false)
 const searchResults = ref<SemanticSearchResult[]>([])
 
-const priorityLabels = {
+// Task Categorization
+const catTitle = ref('')
+const catDescription = ref('')
+const catLoading = ref(false)
+const catResult = ref<{ category: string; subcategories: string[]; reasoning: string } | null>(null)
+
+// Task Insights
+const insights = ref<{
+  total: number
+  by_status: Record<string, number>
+  by_priority: Record<string, number>
+  completion_rate: number
+  insights: string[]
+  recommendations: string[]
+} | null>(null)
+const insightsLoading = ref(false)
+
+const priorityLabels: Record<string, string> = {
   low: '低',
   medium: '中',
   high: '高'
+}
+
+const statusLabels: Record<string, string> = {
+  pending: '待处理',
+  in_progress: '进行中',
+  completed: '已完成'
+}
+
+const categoryLabels: Record<string, string> = {
+  work: '工作',
+  personal: '个人',
+  health: '健康',
+  finance: '财务',
+  learning: '学习',
+  social: '社交',
+  home: '家庭',
+  creative: '创意',
+  urgent: '紧急',
+  other: '其他'
 }
 
 async function handleNLParse() {
@@ -96,6 +132,35 @@ function clearResults() {
   searchResults.value = []
   searchQuery.value = ''
 }
+
+async function handleCategorize() {
+  if (!catTitle.value.trim()) return
+  
+  catLoading.value = true
+  catResult.value = null
+  try {
+    catResult.value = await api.categorizeTask(catTitle.value, catDescription.value || undefined)
+  } catch (e) {
+    console.error('Categorize error:', e)
+  } finally {
+    catLoading.value = false
+  }
+}
+
+async function loadInsights() {
+  insightsLoading.value = true
+  try {
+    insights.value = await api.getTaskInsights()
+  } catch (e) {
+    console.error('Insights error:', e)
+  } finally {
+    insightsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadInsights()
+})
 </script>
 
 <template>
@@ -305,6 +370,190 @@ function clearResults() {
       </div>
     </div>
 
+    <!-- Task Categorization -->
+    <div class="card p-6">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-display font-bold text-dark-100">智能任务分类</h2>
+          <p class="text-sm text-dark-400">AI 自动分析并分类你的任务</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <input 
+          v-model="catTitle"
+          type="text"
+          class="input"
+          placeholder="输入任务标题..."
+        />
+        <textarea 
+          v-model="catDescription"
+          class="input min-h-[80px] resize-none"
+          placeholder="可选：添加任务描述..."
+        ></textarea>
+        <button 
+          @click="handleCategorize"
+          :disabled="!catTitle.trim() || catLoading"
+          class="btn-primary w-full"
+        >
+          <svg v-if="catLoading" class="w-5 h-5 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          分析分类
+        </button>
+
+        <Transition name="fade">
+          <div v-if="catResult" class="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-3">
+            <div class="flex items-center gap-3">
+              <span class="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 font-medium">
+                {{ categoryLabels[catResult.category] || catResult.category }}
+              </span>
+              <div class="flex gap-1">
+                <span 
+                  v-for="sub in catResult.subcategories" 
+                  :key="sub"
+                  class="px-2 py-0.5 rounded text-xs bg-dark-700 text-dark-300"
+                >
+                  {{ sub }}
+                </span>
+              </div>
+            </div>
+            <p class="text-sm text-dark-400">{{ catResult.reasoning }}</p>
+          </div>
+        </Transition>
+      </div>
+    </div>
+
+    <!-- Task Insights -->
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-lg font-display font-bold text-dark-100">任务洞察</h2>
+            <p class="text-sm text-dark-400">AI 分析你的任务数据并提供建议</p>
+          </div>
+        </div>
+        <button @click="loadInsights" :disabled="insightsLoading" class="btn-ghost text-sm">
+          <svg v-if="insightsLoading" class="w-4 h-4 animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          刷新
+        </button>
+      </div>
+
+      <div v-if="insights" class="space-y-6">
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="p-4 rounded-xl bg-dark-800/50 text-center">
+            <div class="text-2xl font-bold text-dark-100">{{ insights.total }}</div>
+            <div class="text-xs text-dark-500">总任务数</div>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-800/50 text-center">
+            <div class="text-2xl font-bold text-emerald-400">{{ insights.completion_rate.toFixed(0) }}%</div>
+            <div class="text-xs text-dark-500">完成率</div>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-800/50 text-center">
+            <div class="text-2xl font-bold text-amber-400">{{ insights.by_status?.in_progress || 0 }}</div>
+            <div class="text-xs text-dark-500">进行中</div>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-800/50 text-center">
+            <div class="text-2xl font-bold text-red-400">{{ insights.by_priority?.high || 0 }}</div>
+            <div class="text-xs text-dark-500">高优先级</div>
+          </div>
+        </div>
+
+        <!-- Status Distribution -->
+        <div class="space-y-2">
+          <div class="text-sm font-medium text-dark-300">状态分布</div>
+          <div class="flex gap-2 h-3 rounded-full overflow-hidden bg-dark-800">
+            <div 
+              v-if="insights.by_status?.completed"
+              class="bg-emerald-500"
+              :style="{ width: `${(insights.by_status.completed / insights.total) * 100}%` }"
+            ></div>
+            <div 
+              v-if="insights.by_status?.in_progress"
+              class="bg-amber-500"
+              :style="{ width: `${(insights.by_status.in_progress / insights.total) * 100}%` }"
+            ></div>
+            <div 
+              v-if="insights.by_status?.pending"
+              class="bg-dark-600"
+              :style="{ width: `${(insights.by_status.pending / insights.total) * 100}%` }"
+            ></div>
+          </div>
+          <div class="flex gap-4 text-xs text-dark-500">
+            <span class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              已完成 ({{ insights.by_status?.completed || 0 }})
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              进行中 ({{ insights.by_status?.in_progress || 0 }})
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-dark-600"></span>
+              待处理 ({{ insights.by_status?.pending || 0 }})
+            </span>
+          </div>
+        </div>
+
+        <!-- AI Insights -->
+        <div v-if="insights.insights.length" class="space-y-2">
+          <div class="text-sm font-medium text-dark-300">AI 洞察</div>
+          <ul class="space-y-2">
+            <li 
+              v-for="(insight, i) in insights.insights" 
+              :key="i"
+              class="flex items-start gap-2 text-sm text-dark-400"
+            >
+              <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {{ insight }}
+            </li>
+          </ul>
+        </div>
+
+        <!-- Recommendations -->
+        <div v-if="insights.recommendations.length" class="space-y-2">
+          <div class="text-sm font-medium text-dark-300">建议</div>
+          <ul class="space-y-2">
+            <li 
+              v-for="(rec, i) in insights.recommendations" 
+              :key="i"
+              class="flex items-start gap-2 text-sm text-dark-400"
+            >
+              <svg class="w-4 h-4 text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {{ rec }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div v-else class="text-center py-8 text-dark-500">
+        <svg v-if="insightsLoading" class="w-8 h-8 animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <p v-else>暂无数据</p>
+      </div>
+    </div>
+
     <!-- AI Tips -->
     <div class="card p-6 bg-gradient-to-br from-accent-500/5 to-primary-500/5 border-accent-500/20">
       <h3 class="font-display font-bold text-dark-200 mb-4 flex items-center gap-2">
@@ -325,6 +574,10 @@ function clearResults() {
         <li class="flex items-start gap-2">
           <span class="text-primary-400">•</span>
           <span>语义搜索可以找到含义相近但关键词不同的任务</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-primary-400">•</span>
+          <span>智能分类帮助你自动整理和归类任务</span>
         </li>
         <li class="flex items-start gap-2">
           <span class="text-primary-400">•</span>

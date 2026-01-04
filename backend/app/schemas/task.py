@@ -132,3 +132,45 @@ class TaskSummaryResponse(BaseModel):
     in_progress_tasks: int
     high_priority_count: int
 
+
+class SimilarTaskRequest(BaseModel):
+    """Schema for finding similar tasks."""
+    task_id: int
+    limit: int = Field(default=5, ge=1, le=20, description="Maximum similar tasks to return")
+
+
+class SimilarTaskResult(BaseModel):
+    """Schema for similar task result."""
+    task: TaskResponse
+    similarity_score: float = Field(ge=0, le=1)
+
+
+class SimilarTaskResponse(BaseModel):
+    """Schema for similar tasks response."""
+    source_task_id: int
+    similar_tasks: List[SimilarTaskResult]
+
+
+class TaskCategoryRequest(BaseModel):
+    """Schema for task categorization request."""
+    title: str = Field(..., min_length=1)
+    description: Optional[str] = None
+
+
+class TaskCategoryResponse(BaseModel):
+    """Schema for task categorization response."""
+    category: str
+    subcategories: List[str]
+    reasoning: Optional[str] = None
+
+
+class TaskInsightsResponse(BaseModel):
+    """Schema for task insights response."""
+    total: int
+    by_status: dict
+    by_priority: dict
+    by_tag: dict
+    completion_rate: float
+    insights: List[str]
+    recommendations: List[str]
+

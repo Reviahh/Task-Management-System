@@ -19,6 +19,12 @@ from app.schemas.task import (
     PrioritySuggestionResponse,
     TaskSummaryRequest,
     TaskSummaryResponse,
+    SimilarTaskRequest,
+    SimilarTaskResponse,
+    SimilarTaskResult,
+    TaskCategoryRequest,
+    TaskCategoryResponse,
+    TaskInsightsResponse,
 )
 from app.services.task_service import task_service
 from app.services.ai_service import ai_service
@@ -277,8 +283,69 @@ async def get_task_summary(
     """
     result = await task_service.get_task_summary(
         db,
-        summary_request.task_ids
+        summary_request.task_ids,
+        summary_request.period
     )
     
     return TaskSummaryResponse(**result)
 
+
+@router.post("/ai/similar", response_model=SimilarTaskResponse)
+async def find_similar_tasks(
+    request: SimilarTaskRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Find similar tasks based on semantic similarity.
+    Useful for detecting duplicate or related tasks.
+    """
+    task = await task_service.get_task(db, request.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    similar_tasks = await task_service.find_similar_tasks(
+        db, 
+        request.task_id, 
+        request.limit
+    )
+    
+    results = [
+        SimilarTaskResult(task=t, similarity_score=score)
+        for t, score in similar_tasks
+    ]
+    
+    return SimilarTaskResponse(
+        source_task_id=request.task_id,
+        similar_tasks=results
+    )
+
+
+@router.post("/ai/categorize", response_model=TaskCategoryResponse)
+async def categorize_task(
+    request: TaskCategoryRequest
+):
+    """
+    Automatically categorize a task based on its content.
+    Returns the main category, subcategories, and reasoning.
+    """
+    category, subcategories, reasoning = await ai_service.categorize_task(
+        request.title,
+        request.description
+    )
+    
+    return TaskCategoryResponse(
+        category=category,
+        subcategories=subcategories,
+        reasoning=reasoning
+    )
+
+
+@router.get("/ai/insights", response_model=TaskInsightsResponse)
+async def get_task_insights(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get AI-generated insights and analytics about all tasks.
+    Includes completion rate, status distribution, and recommendations.
+    """
+    return await task_service.get_task_insights(db)
