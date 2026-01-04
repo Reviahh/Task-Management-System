@@ -13,6 +13,9 @@
 - **AI/LLM**: OpenAI API (支持兼容接口)
 - **其他工具**: SQLAlchemy (ORM), Pydantic (数据验证)
 
+## Documentation
+- **DeepWiki 文档**: [Development Guide](https://deepwiki.com/Reviahh/Task-Management-System/6-development-guide) - 完整的开发指南，包含环境配置、测试流程和 API 参考
+
 ## Features Implemented
 
 ### Core Features (核心功能)
@@ -266,15 +269,145 @@ Content-Type: application/json
 ## Bonus Features (附加功能)
 
 ### Testing (测试)
-- [x] **单元测试**: 使用 pytest + pytest-asyncio 进行后端测试
-- [x] **API 测试**: 完整的 CRUD 和 AI 功能测试覆盖
-- [x] **测试配置**: pytest.ini 配置，支持异步测试
 
-### CI/CD
-- [x] **GitHub Actions**: 自动化 CI/CD 流水线
-- [x] **后端测试任务**: Python 依赖安装、代码检查、测试覆盖率
-- [x] **前端测试任务**: Node.js 构建和类型检查
-- [x] **安全扫描**: Snyk 安全漏洞检测
+本项目采用 **pytest** + **pytest-asyncio** 测试框架，实现了完整的单元测试和集成测试覆盖。
+
+#### 测试框架与工具
+
+| 工具 | 版本 | 用途 |
+|------|------|------|
+| pytest | 8.0.0 | 测试框架 |
+| pytest-asyncio | 0.23.3 | 异步测试支持 |
+| pytest-cov | 4.1.0 | 代码覆盖率 |
+| pytest-html | 4.1.1 | HTML 测试报告 |
+| httpx | 0.26.0 | 异步 HTTP 测试客户端 |
+
+---
+
+### Unit Tests (单元测试)
+
+> **定义**: 单元测试针对单个函数、方法或类进行隔离测试，验证其独立的逻辑正确性。
+
+测试文件位于 `backend/tests/` 目录。
+
+#### `test_tasks.py` - 任务服务单元测试
+
+| 测试类 | 测试用例 | 测试目标 | 类型 |
+|--------|----------|----------|------|
+| **TestTaskCRUD** | `test_create_task` | 验证任务创建逻辑，检查字段正确填充 | Unit |
+| | `test_create_task_minimal` | 验证默认值填充逻辑 | Unit |
+| | `test_create_task_invalid` | 验证输入校验逻辑（Pydantic 验证） | Unit |
+| | `test_get_task_not_found` | 验证 404 错误处理逻辑 | Unit |
+| | `test_update_task` | 验证更新逻辑，字段部分更新 | Unit |
+| | `test_delete_task_not_found` | 验证删除不存在资源的错误处理 | Unit |
+| **TestTaskFiltering** | `test_filter_by_status` | 验证状态过滤逻辑 | Unit |
+| | `test_filter_by_priority` | 验证优先级过滤逻辑 | Unit |
+| | `test_search_tasks` | 验证搜索逻辑 | Unit |
+| | `test_pagination` | 验证分页计算逻辑 | Unit |
+
+#### `test_ai_features.py` - AI 服务单元测试
+
+| 测试类 | 测试用例 | 测试目标 | 类型 |
+|--------|----------|----------|------|
+| **TestNaturalLanguageParsing** | `test_parse_simple_task` | 验证 NLP 解析函数输出格式 | Unit |
+| | `test_parse_urgent_task` | 验证优先级关键词识别逻辑 | Unit |
+| | `test_parse_empty_text` | 验证空输入校验逻辑 | Unit |
+| **TestTagSuggestions** | `test_suggest_tags` | 验证标签建议算法输出 | Unit |
+| | `test_suggest_tags_not_found` | 验证资源不存在时的错误处理 | Unit |
+| **TestPrioritySuggestions** | `test_suggest_priority` | 验证优先级推荐算法 | Unit |
+| **TestTaskBreakdown** | `test_breakdown_task` | 验证任务分解算法输出格式 | Unit |
+| **TestTaskCategorization** | `test_categorize_task` | 验证分类算法输出 | Unit |
+| | `test_categorize_work_task` | 验证工作类任务分类准确性 | Unit |
+
+---
+
+### Integration Tests (集成测试)
+
+> **定义**: 集成测试验证多个组件协同工作的完整流程，测试组件之间的交互是否正确。
+
+#### `test_tasks.py` - API 集成测试
+
+| 测试类 | 测试用例 | 测试流程 | 涉及组件 |
+|--------|----------|----------|----------|
+| **TestTaskCRUD** | `test_get_tasks_empty` | HTTP Request → Router → Service → DB → Response | API + DB |
+| | `test_get_tasks` | 完整查询流程：请求 → 数据库查询 → 响应序列化 | API + Service + DB |
+| | `test_get_task_by_id` | 单资源查询：路由解析 → 数据库查找 → JSON 响应 | API + Service + DB |
+| | `test_delete_task` | 删除流程：认证 → 删除操作 → 验证删除结果 | API + Service + DB |
+| **TestHealthCheck** | `test_health_check` | 健康检查：API → 数据库连接测试 → AI 服务状态 | API + DB + AI Service |
+| | `test_root_endpoint` | 根端点响应验证 | API |
+
+#### `test_ai_features.py` - AI 服务集成测试
+
+| 测试类 | 测试用例 | 测试流程 | 涉及组件 |
+|--------|----------|----------|----------|
+| **TestNaturalLanguageParsing** | `test_create_from_natural_language` | NLP 解析 → 任务创建 → 数据库存储 | API + AI Service + DB |
+| **TestSemanticSearch** | `test_semantic_search` | 查询向量化 → 相似度计算 → 结果排序 | API + AI Service + DB |
+| | `test_semantic_search_empty_query` | 空查询校验 → 错误响应 | API + Validation |
+| **TestTaskSummary** | `test_get_summary` | 数据聚合 → AI 摘要生成 → 响应 | API + AI Service + DB |
+| | `test_get_daily_summary` | 时间过滤 → 聚合 → 摘要 | API + AI Service + DB |
+| **TestTaskInsights** | `test_get_insights` | 数据分析 → 洞察生成 → 建议输出 | API + AI Service + DB |
+| **TestSimilarTasks** | `test_find_similar_tasks` | 向量检索 → 相似度排序 → 结果返回 | API + AI Service + DB |
+
+---
+
+#### 测试配置文件
+
+**`pytest.ini`**:
+```ini
+[pytest]
+asyncio_mode = auto
+testpaths = tests
+python_files = test_*.py
+python_functions = test_*
+python_classes = Test*
+addopts = -v --tb=short --strict-markers --html=reports/test_report.html --self-contained-html --cov=app --cov-report=html:reports/coverage --cov-report=term-missing
+```
+
+**`conftest.py`** 提供的 Fixtures:
+| Fixture | 作用域 | 描述 |
+|---------|--------|------|
+| `event_loop` | session | 创建异步事件循环 |
+| `test_db` | function | 创建测试数据库并自动清理 |
+| `client` | function | 异步 HTTP 测试客户端 |
+| `sample_task` | function | 预创建的示例任务 |
+
+#### 运行测试
+
+```bash
+# 进入后端目录
+cd backend
+
+# 运行所有测试
+pytest
+
+# 运行单元测试
+pytest tests/test_tasks.py::TestTaskCRUD::test_create_task -v
+pytest tests/test_tasks.py::TestTaskFiltering -v
+
+# 运行集成测试
+pytest tests/test_tasks.py::TestHealthCheck -v
+pytest tests/test_ai_features.py::TestSemanticSearch -v
+
+# 生成覆盖率报告
+pytest --cov=app --cov-report=html:reports/coverage
+```
+
+#### 测试报告
+
+| 报告类型 | 路径 | 描述 |
+|----------|------|------|
+| HTML 测试报告 | `backend/reports/test_report.html` | 可视化测试结果 |
+| 覆盖率报告 | `backend/reports/coverage/index.html` | 代码覆盖率详情 |
+
+#### 测试统计
+
+| 指标 | 数值 |
+|------|------|
+| 总测试用例数 | **32** |
+| Unit Tests (单元测试) | 20 |
+| Integration Tests (集成测试) | 12 |
+| 测试文件数 | 2 |
+| 测试类数 | 14 |
 
 ### Logging (日志)
 - [x] **结构化日志**: JSON 格式日志输出
@@ -323,7 +456,7 @@ Content-Type: application/json
 4. **无实时更新**: 当前未实现 WebSocket，多用户场景需要手动刷新
 
 ## Time Spent
-2 小时
+3 小时
 
 ## AI Assistant Usage
 本项目使用 AI 辅助开发，主要用于:

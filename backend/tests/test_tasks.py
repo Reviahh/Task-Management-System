@@ -192,7 +192,8 @@ class TestHealthCheck:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-        assert "ai_available" in data
+        assert "checks" in data
+        assert "ai_service" in data["checks"]
 
     @pytest.mark.asyncio
     async def test_root_endpoint(self, client: AsyncClient):

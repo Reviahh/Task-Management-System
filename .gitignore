@@ -48,6 +48,7 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+backend/reports/
 
 # API Keys - NEVER commit these
 **/api_keys.json
