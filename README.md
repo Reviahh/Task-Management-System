@@ -50,6 +50,30 @@
 - [x] 流畅的动画和过渡效果
 - [x] 深色主题设计
 
+## Screenshots (应用截图)
+
+### 主界面 - 任务仪表板
+![Dashboard](docs/screenshots/dashboard.png)
+*任务管理主界面，展示任务列表、统计信息和快捷操作*
+
+### 任务列表视图
+![Task List](docs/screenshots/task-list.png)
+*支持筛选、排序和分页的任务列表*
+
+### 任务创建/编辑
+![Task Form](docs/screenshots/task-form.png)
+*任务创建和编辑表单，支持标题、描述、优先级和标签*
+
+### AI 功能面板
+![AI Features](docs/screenshots/ai-features.png)
+*AI 驱动的智能功能：自然语言解析、标签建议、任务分解*
+
+### 语义搜索
+![Semantic Search](docs/screenshots/semantic-search.png)
+*基于语义相似度的智能搜索结果*
+
+> **注意**: 截图文件存放在 `docs/screenshots/` 目录下
+
 ## Project Structure
 ```
 project/
