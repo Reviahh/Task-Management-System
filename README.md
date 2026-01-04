@@ -323,7 +323,7 @@ Content-Type: application/json
 4. **无实时更新**: 当前未实现 WebSocket，多用户场景需要手动刷新
 
 ## Time Spent
-约 3-4 小时
+2 小时
 
 ## AI Assistant Usage
 本项目使用 AI 辅助开发，主要用于:
